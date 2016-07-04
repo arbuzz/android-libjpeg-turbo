@@ -1,6 +1,8 @@
 LOCAL_PATH := $(abspath $(call my-dir))
 include $(CLEAR_VARS)
 
+LOCAL_LDLIBS := -L$(SYSROOT)/usr/lib -llog 
+LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
 LOCAL_MODULE := libjpeg-turbo
 
 SOURCE_PATH := libjpeg-turbo-1.4.1
@@ -146,6 +148,7 @@ LOCAL_SRC_FILES += \
 	$(SOURCE_PATH)/jutils.c \
 	$(SOURCE_PATH)/jmemmgr.c \
 	$(SOURCE_PATH)/jmemnobs.c \
+	$(SOURCE_PATH)/turbojpeg-jni.c \
 
 # if WITH_ARITH_ENC from Makefile.am
 LOCAL_SRC_FILES += \
@@ -199,4 +202,4 @@ LOCAL_CFLAGS += \
 	-DSTDC_HEADERS=1 \
 	-DWITH_SIMD=1 \
 
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)

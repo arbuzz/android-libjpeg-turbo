@@ -33,6 +33,7 @@
 #include "tjutil.h"
 #endif
 #include <jni.h>
+#include <android/log.h>
 #include "java/org_libjpegturbo_turbojpeg_TJCompressor.h"
 #include "java/org_libjpegturbo_turbojpeg_TJDecompressor.h"
 #include "java/org_libjpegturbo_turbojpeg_TJ.h"
@@ -76,13 +77,56 @@
 	}  \
 }
 
+JavaVM* gJvm = NULL;
+static jobject gClassLoader;
+static jmethodID gFindClassMethod;
+
+JNIEnv* getEnv() {
+    JNIEnv *env;
+    int status = (*gJvm)->GetEnv(gJvm, (void**)&env, JNI_VERSION_1_6);
+    if(status < 0) {    
+        status = (*gJvm)->AttachCurrentThread(gJvm, &env, NULL);
+        if(status < 0) {        
+            return NULL;
+        }
+    }
+    return env;
+}
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *pjvm, void *reserved) {
+    gJvm = pjvm;  // cache the JavaVM pointer
+    JNIEnv* env = getEnv();
+    //replace with one of your classes in the line below
+    jclass gSystemClass = (*env)->FindClass(env, "java/lang/System");
+    jclass classClass = (*env)->GetObjectClass(env, gSystemClass);
+    auto classLoaderClass = (*env)->FindClass(env, "java/lang/ClassLoader");
+    auto getClassLoaderMethod = (*env)->GetMethodID(env, classClass, "getClassLoader",
+                                             "()Ljava/lang/ClassLoader;");
+    jclass tmp = (*env)->CallObjectMethod(env, gSystemClass, getClassLoaderMethod);
+    gClassLoader = (jclass) (*env)->NewGlobalRef(env, tmp);
+    gFindClassMethod = (*env)->GetMethodID(env, classLoaderClass, "findClass",
+                                    "(Ljava/lang/String;)Ljava/lang/Class;");
+
+    __android_log_write(ANDROID_LOG_INFO, "JNI", "JNI On Load");
+
+    return JNI_VERSION_1_6;
+}
+
+jclass findClass(const char* name) {
+	__android_log_write(ANDROID_LOG_INFO, "JNI", "Find Class");
+	JNIEnv* env = getEnv();
+    return (jclass) ((*env)->CallObjectMethod(env, gClassLoader, gFindClassMethod, (*env)->NewStringUTF(env, name)));
+}
+
 int ProcessSystemProperties(JNIEnv *env)
 {
 	jclass cls;  jmethodID mid;
 	jstring jName, jValue;
 	const char *value;
 
-	bailif0(cls=(*env)->FindClass(env, "java/lang/System"));
+	// bailif0(cls=(*env)->FindClass(env, "java/lang/System"));
+	bailif0(cls=findClass("java/lang/System"));
+	// bailif0(cls=gSystemClass);
 	bailif0(mid=(*env)->GetStaticMethodID(env, cls, "getProperty",
 		"(Ljava/lang/String;)Ljava/lang/String;"));
 
@@ -209,7 +253,8 @@ static jint TJCompressor_compress
 	bailif0(srcBuf=(*env)->GetPrimitiveArrayCritical(env, src, 0));
 	bailif0(jpegBuf=(*env)->GetPrimitiveArrayCritical(env, dst, 0));
 
-	if(ProcessSystemProperties(env)<0) goto bailout;
+	// if(ProcessSystemProperties(env)<0) goto bailout;
+	setenv("TJ_PROGRESSIVE", "1", 1); 
 
 	if(tjCompress2(handle, &srcBuf[y*actualPitch + x*tjPixelSize[pf]], width,
 		pitch, height, pf, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual,
